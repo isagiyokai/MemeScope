@@ -7,6 +7,7 @@ if (!_configuredUrl) {
 }
 const API_BASE = _configuredUrl ?? "http://localhost:8000";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
+const WS_API_KEY = import.meta.env.VITE_APP_API_KEY as string | undefined;
 
 // ── Raw backend types ──────────────────────────────────────────────────────
 
@@ -147,7 +148,10 @@ export function connectSignalStream(
 
   function connect() {
     if (closed) return;
-    ws = new WebSocket(`${WS_BASE}/ws/signals`);
+    const wsUrl = WS_API_KEY
+      ? `${WS_BASE}/ws/signals?api_key=${encodeURIComponent(WS_API_KEY)}`
+      : `${WS_BASE}/ws/signals`;
+    ws = new WebSocket(wsUrl);
 
     ws.onmessage = (e) => {
       try {
