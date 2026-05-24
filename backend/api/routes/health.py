@@ -73,8 +73,18 @@ async def _check_birdeye() -> dict:
 
 @router.get("")
 async def api_health():
-    db, redis, helius, birdeye = await asyncio.gather(
-        _check_db(), _check_redis(), _check_helius(), _check_birdeye()
+    from shared.heartbeat import get_worker_status
+    db, redis, helius, birdeye, workers = await asyncio.gather(
+        _check_db(), _check_redis(), _check_helius(), _check_birdeye(),
+        get_worker_status(),
     )
-    overall = "ok" if all(s["status"] == "ok" for s in (db, redis, helius, birdeye)) else "degraded"
-    return {"overall": overall, "db": db, "redis": redis, "helius": helius, "birdeye": birdeye}
+    services = (db, redis, helius, birdeye)
+    overall = "ok" if all(s["status"] == "ok" for s in services) else "degraded"
+    return {
+        "overall": overall,
+        "db": db,
+        "redis": redis,
+        "helius": helius,
+        "birdeye": birdeye,
+        "workers": workers,
+    }

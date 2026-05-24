@@ -100,7 +100,20 @@ from api.websocket.signal_stream import signal_stream
 app.add_websocket_route("/ws/signals", signal_stream)
 
 if _PROMETHEUS_AVAILABLE:
-    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+    from starlette.requests import Request as _Req
+    from starlette.responses import Response as _Resp
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+    Instrumentator().instrument(app)  # registers middleware; we expose manually below
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint(request: _Req):
+        api_key = settings.app.api_key
+        if api_key:
+            auth = request.headers.get("Authorization", "")
+            if auth != f"Bearer {api_key}":
+                return _Resp(status_code=401, content=b"Unauthorized")
+        return _Resp(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health")

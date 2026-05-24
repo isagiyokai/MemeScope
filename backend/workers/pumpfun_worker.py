@@ -31,10 +31,12 @@ async def process_launch(raw: dict) -> None:
 
 
 async def run_pumpfun_worker():
+    from shared.heartbeat import beat
     logger.info("Pump.fun worker starting")
     redis = await get_redis()
     while True:
         try:
+            await beat("pumpfun")
             result = await redis.brpop(PUMPFUN_LAUNCH_QUEUE, timeout=10)
             if not result:
                 continue

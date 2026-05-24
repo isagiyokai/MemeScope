@@ -13,10 +13,12 @@ SIGNAL_EVAL_QUEUE = "signal_eval_queue"
 
 
 async def run_signal_worker():
+    from shared.heartbeat import beat
     logger.info("Signal worker starting")
     redis = await get_redis()
     while True:
         try:
+            await beat("signal")
             result = await redis.brpop(SIGNAL_EVAL_QUEUE, timeout=10)
             if not result:
                 continue

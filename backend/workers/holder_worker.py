@@ -31,10 +31,12 @@ async def refresh_token_holders(token_mint: str) -> None:
 
 
 async def run_holder_worker():
+    from shared.heartbeat import beat
     logger.info("Holder worker starting")
     redis = await get_redis()
     while True:
         try:
+            await beat("holder")
             result = await redis.brpop(HOLDER_UPDATE_QUEUE, timeout=HOLDER_SNAPSHOT_INTERVAL_SECONDS)
             if result:
                 _, token_mint = result

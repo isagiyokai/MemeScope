@@ -60,10 +60,12 @@ async def process_raw_tx(raw: dict) -> None:
 
 
 async def run_parser_worker():
+    from shared.heartbeat import beat
     logger.info("Parser worker starting")
     redis = await get_redis()
     while True:
         try:
+            await beat("parser")
             result = await redis.brpop(RAW_TX_QUEUE, timeout=5)
             if not result:
                 continue
