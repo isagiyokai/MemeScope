@@ -20,10 +20,22 @@ PARSED_TRADE_QUEUE = "parsed_trade_queue"
 SIGNAL_EVAL_QUEUE = "signal_eval_queue"
 
 
+_SOLANA_SIG_RE = __import__("re").compile(r"^[1-9A-HJ-NP-Za-km-z]{64,88}$")
+
+
 async def process_raw_tx(raw: dict) -> None:
+    if not isinstance(raw, dict):
+        logger.warning("Skipping non-dict queue item")
+        return
+
     signature = raw.get("signature")
     tx = raw.get("transaction", {})
     slot = raw.get("slot")
+
+    # Validate signature format before touching the DB or downstream services
+    if signature and not _SOLANA_SIG_RE.match(str(signature)):
+        logger.warning("Skipping tx with invalid signature format", sig=str(signature)[:20])
+        return
 
     if not signature or not tx:
         logger.warning("Skipping invalid raw tx", raw=raw)

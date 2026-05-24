@@ -21,6 +21,9 @@ settings = get_settings()
 configure_logging()
 logger = get_logger(__name__)
 
+# Warn on insecure config at startup
+settings.validate_security()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,17 +39,28 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down")
 
 
+# Disable interactive docs in production
+_docs_url = "/docs" if settings.app.env == "development" else None
+_redoc_url = "/redoc" if settings.app.env == "development" else None
+_openapi_url = "/openapi.json" if settings.app.env == "development" else None
+
 app = FastAPI(
     title=settings.app.name,
     version=settings.app.version,
     description="MemeScope behavioral intelligence engine.",
     lifespan=lifespan,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
+    openapi_url=_openapi_url,
 )
 
+# Never combine allow_origins=["*"] with allow_credentials=True (browser security).
+# When origins are explicit, credentials (cookies/auth headers) are allowed.
+_wildcard = settings.app.cors_origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.app.cors_origins,
-    allow_credentials=True,
+    allow_credentials=not _wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -65,4 +79,4 @@ app.add_websocket_route("/ws/signals", signal_stream)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": settings.app.version}
+    return {"status": "ok"}

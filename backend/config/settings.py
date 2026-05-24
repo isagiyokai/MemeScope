@@ -30,7 +30,7 @@ class HeliusSettings(BaseSettings):
     request_timeout: int = 30
     max_retries: int = 3
     retry_delay: float = 1.0
-    rpm: int = 600  # 10 RPS sustained (developer plan); set lower via HELIUS_RPM for free tier
+    rpm: int = 600
 
     model_config = SettingsConfigDict(env_prefix="HELIUS_")
 
@@ -51,7 +51,7 @@ class BirdeyeSettings(BaseSettings):
 class JWTSettings(BaseSettings):
     secret_key: str = ""
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+    access_token_expire_minutes: int = 60  # 1 hour — was 7 days (security fix)
 
     model_config = SettingsConfigDict(env_prefix="JWT_")
 
@@ -62,10 +62,12 @@ class AppSettings(BaseSettings):
     debug: bool = False
     env: str = "development"
     log_level: str = "INFO"
-    cors_origins: list[str] = ["*"]  # override via APP_CORS_ORIGINS in production
+    # Default to localhost dev origins only — set APP_CORS_ORIGINS in production
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
     host: str = "0.0.0.0"
     port: int = 8000
     reload: bool = False
+    api_key: str = ""  # Set APP_API_KEY to require key on write endpoints + WebSocket
 
     model_config = SettingsConfigDict(env_prefix="APP_")
 
@@ -93,14 +95,14 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Load .env explicitly so values are always available even if env_file parsing is subtle
         env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
-        env = dict(os.environ)
+        # .env values are the base — real environment variables take precedence
         try:
             dotenv_env = dotenv_values(env_path)
         except Exception:
             dotenv_env = {}
-        env.update(dotenv_env)
+        dotenv_env.update(os.environ)  # real env vars win over .env
+        env = dotenv_env
         if not self.database.url:
             self.database.url = env.get("DATABASE_URL", "")
         if not self.redis.url:
@@ -111,6 +113,22 @@ class Settings(BaseSettings):
             self.birdeye.api_key = env.get("BIRDEYE_API_KEY", "")
         if not self.jwt.secret_key:
             self.jwt.secret_key = env.get("JWT_SECRET_KEY", "")
+        if not self.app.api_key:
+            self.app.api_key = env.get("APP_API_KEY", "")
+
+    def validate_security(self) -> None:
+        """Call at startup. Raises if critical security config is missing."""
+        errors = []
+        if not self.jwt.secret_key:
+            errors.append("JWT_SECRET_KEY is not set — token signing is disabled")
+        elif len(self.jwt.secret_key) < 32:
+            errors.append("JWT_SECRET_KEY is too short (minimum 32 characters)")
+        if self.app.env != "development" and "*" in self.app.cors_origins:
+            errors.append("APP_CORS_ORIGINS must not be '*' in non-development environments")
+        if errors:
+            import warnings
+            for e in errors:
+                warnings.warn(f"[MemeScope security] {e}", stacklevel=2)
 
 
 @lru_cache

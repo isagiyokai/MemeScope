@@ -1,17 +1,29 @@
 import asyncio
 import json
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, Query
 
 from core.redis import get_redis
+from config.settings import get_settings
 from config.logging import get_logger
 
 logger = get_logger(__name__)
 SIGNAL_PUBSUB_CHANNEL = "memescope:signals"
 
 
-async def signal_stream(websocket: WebSocket):
+async def signal_stream(
+    websocket: WebSocket,
+    api_key: Optional[str] = Query(None),
+):
+    settings = get_settings()
+    configured_key = settings.app.api_key
+    if configured_key and api_key != configured_key:
+        await websocket.close(code=1008)
+        logger.warning("WebSocket rejected: invalid API key", client=websocket.client)
+        return
+
     await websocket.accept()
     logger.info("WebSocket client connected", client=websocket.client)
     redis = None
@@ -38,10 +50,8 @@ async def signal_stream(websocket: WebSocket):
         task = asyncio.create_task(relay())
 
         while True:
-            # Keep connection alive and allow graceful close
             try:
                 await asyncio.sleep(10)
-                # Optional: send ping to client
                 await websocket.send_json({"type": "ping", "ts": datetime.now(timezone.utc).isoformat()})
             except WebSocketDisconnect:
                 break
@@ -62,4 +72,3 @@ async def signal_stream(websocket: WebSocket):
         if pubsub is not None:
             await pubsub.unsubscribe(SIGNAL_PUBSUB_CHANNEL)
             await pubsub.close()
-        # Do not close shared redis pool

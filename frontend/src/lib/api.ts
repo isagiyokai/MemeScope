@@ -1,7 +1,11 @@
 // Central API client — all backend calls go through here.
-// Base URL is configured via VITE_API_URL env var (default: http://localhost:8000).
+// Set VITE_API_URL in your .env file. Must use https:// in production.
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+const _configuredUrl = import.meta.env.VITE_API_URL as string | undefined;
+if (!_configuredUrl) {
+  console.warn("[MemeScope] VITE_API_URL is not set — falling back to http://localhost:8000");
+}
+const API_BASE = _configuredUrl ?? "http://localhost:8000";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 
 // ── Raw backend types ──────────────────────────────────────────────────────

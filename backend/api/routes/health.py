@@ -5,11 +5,13 @@ import httpx
 from fastapi import APIRouter
 
 from config.settings import get_settings
+from config.logging import get_logger
 from core.db import engine
 from core.redis import redis_health_check
 
 router = APIRouter()
 settings = get_settings()
+logger = get_logger(__name__)
 
 
 async def _check_db() -> dict:
@@ -20,7 +22,8 @@ async def _check_db() -> dict:
             await conn.execute(text("SELECT 1"))
         return {"status": "ok", "latency_ms": round((time.monotonic() - t0) * 1000)}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.error("DB health check failed", error=str(e))
+        return {"status": "error"}
 
 
 async def _check_redis() -> dict:
@@ -30,9 +33,10 @@ async def _check_redis() -> dict:
         latency = round((time.monotonic() - t0) * 1000)
         if ok:
             return {"status": "ok", "latency_ms": latency}
-        return {"status": "error", "error": "ping failed"}
+        return {"status": "error"}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.error("Redis health check failed", error=str(e))
+        return {"status": "error"}
 
 
 async def _check_helius() -> dict:
@@ -45,10 +49,12 @@ async def _check_helius() -> dict:
             r.raise_for_status()
             data = r.json()
             if "error" in data:
-                return {"status": "error", "error": str(data["error"])}
+                logger.warning("Helius health check RPC error")
+                return {"status": "error"}
         return {"status": "ok", "latency_ms": round((time.monotonic() - t0) * 1000)}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.error("Helius health check failed", error=str(e))
+        return {"status": "error"}
 
 
 async def _check_birdeye() -> dict:
@@ -61,7 +67,8 @@ async def _check_birdeye() -> dict:
             r.raise_for_status()
         return {"status": "ok", "latency_ms": round((time.monotonic() - t0) * 1000)}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.error("Birdeye health check failed", error=str(e))
+        return {"status": "error"}
 
 
 @router.get("")

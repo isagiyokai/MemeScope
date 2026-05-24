@@ -111,7 +111,7 @@ const AlertConfigSheet = () => {
           </button>
 
           <p className="text-[10px] text-muted-foreground text-center font-mono">
-            Live notifications require Lovable Cloud backend
+            Alert delivery not yet implemented — configuration will not be saved
           </p>
         </div>
       </SheetContent>

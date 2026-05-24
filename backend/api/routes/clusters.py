@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import get_db
+from api.dependencies import get_db, require_api_key
 from schemas.cluster_schema import ClusterRead
 from repositories.cluster_repo import ClusterRepository
 from services.clustering.cluster_detector import ClusterDetector
@@ -35,8 +35,9 @@ async def get_cluster(cluster_id: str, db: AsyncSession = Depends(get_db)):
     return ClusterRead.model_validate(cluster)
 
 
-@router.post("/detect")
+@router.post("/detect", dependencies=[Depends(require_api_key)])
 async def detect_clusters(db: AsyncSession = Depends(get_db)):
+    """Trigger cluster detection. Requires X-API-Key header if APP_API_KEY is configured."""
     detector = ClusterDetector(db)
     clusters = await detector.run()
     return {
@@ -54,4 +55,3 @@ async def get_cluster_wallets(cluster_id: str, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=404, detail="Cluster not found")
     wallets = [w.strip() for w in (cluster.wallets or "").split(",") if w.strip()]
     return {"cluster_id": cluster_id, "wallets": wallets}
-

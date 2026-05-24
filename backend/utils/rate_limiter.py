@@ -81,11 +81,23 @@ class AdaptiveRateLimiter(RateLimiter):
 
     # ── persistence ──────────────────────────────────────────────────────────
 
+    _MIN_RPM = 1
+    _MAX_RPM = 2000
+
     def _load_state(self) -> None:
         try:
             data = json.loads(_STATE_FILE.read_text())
             c = data.get(self._client_name, {})
-            self._base_rpm = c.get("base_rpm", self._base_rpm)
+            loaded_rpm = c.get("base_rpm", self._base_rpm)
+            # Clamp to sane bounds — reject tampered or corrupt state
+            if not (self._MIN_RPM <= loaded_rpm <= self._MAX_RPM):
+                logger.warning(
+                    "Rate state out of bounds — ignoring",
+                    client=self._client_name,
+                    loaded_rpm=loaded_rpm,
+                )
+                loaded_rpm = self._base_rpm
+            self._base_rpm = loaded_rpm
             self._last_probe_check = c.get("last_probe_check", 0.0)
             self.rpm = self._base_rpm
             self._interval = 60.0 / self.rpm
