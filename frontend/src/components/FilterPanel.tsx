@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { SlidersHorizontal, ChevronLeft, ChevronRight, Droplets, Clock, Target, Wallet, Sparkles } from "lucide-react";
 import { Filters } from "@/lib/mockData";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface FilterPanelProps {
   filters: Filters;
@@ -8,7 +10,11 @@ interface FilterPanelProps {
   onToggleCollapsed?: () => void;
 }
 
+type DrawerId = "liquidity" | "age" | "winrate" | "score";
+
 const FilterPanel = ({ filters, onChange, collapsed = false, onToggleCollapsed }: FilterPanelProps) => {
+  const [activeDrawer, setActiveDrawer] = useState<DrawerId | null>(null);
+
   if (!filters) return null;
   const update = (partial: Partial<Filters>) => onChange({ ...filters, ...partial });
 
@@ -26,63 +32,119 @@ const FilterPanel = ({ filters, onChange, collapsed = false, onToggleCollapsed }
     }
   };
 
+  const drawerConfigs: Array<{
+    id: DrawerId;
+    Icon: typeof Droplets;
+    label: string;
+    active: boolean;
+    title: string;
+    description: string;
+    node: React.ReactNode;
+  }> = [
+    {
+      id: "liquidity",
+      Icon: Droplets,
+      label: `Liq $${filters.minLiquidityK}K`,
+      active: filters.minLiquidityK > 0,
+      title: "Min Liquidity",
+      description: "Filter signals by minimum token liquidity",
+      node: <FilterSlider label="Min Liquidity" value={filters.minLiquidityK} onChange={(v) => update({ minLiquidityK: v })} min={0} max={100} unit="K" prefix="$" />,
+    },
+    {
+      id: "age",
+      Icon: Clock,
+      label: `Age ${filters.maxAgeMin}m`,
+      active: filters.maxAgeMin < 60,
+      title: "Token Age",
+      description: "Maximum token age to include in signals",
+      node: <FilterSlider label="Max Token Age" value={filters.maxAgeMin} onChange={(v) => update({ maxAgeMin: v })} min={1} max={60} unit="min" />,
+    },
+    {
+      id: "winrate",
+      Icon: Target,
+      label: `WR ${filters.minWinRate}%`,
+      active: filters.minWinRate > 0,
+      title: "Win Rate",
+      description: "Minimum wallet win rate to qualify",
+      node: <FilterSlider label="Min Win Rate" value={filters.minWinRate} onChange={(v) => update({ minWinRate: v })} min={0} max={100} unit="%" />,
+    },
+    {
+      id: "score",
+      Icon: Wallet,
+      label: `Score ${filters.minWalletScore}`,
+      active: filters.minWalletScore > 0,
+      title: "Wallet Score",
+      description: "Minimum composite wallet intelligence score",
+      node: <FilterSlider label="Min Wallet Score" value={filters.minWalletScore} onChange={(v) => update({ minWalletScore: v })} min={0} max={100} unit="" />,
+    },
+  ];
+
   if (collapsed) {
-    // Icon rail — shows active filter summary as tiny indicators
-    const items = [
-      { icon: Droplets, label: `Liq $${filters.minLiquidityK}K`, active: filters.minLiquidityK > 0 },
-      { icon: Clock, label: `Age ${filters.maxAgeMin}m`, active: filters.maxAgeMin < 60 },
-      { icon: Target, label: `WR ${filters.minWinRate}%`, active: filters.minWinRate > 0 },
-      { icon: Wallet, label: `Score ${filters.minWalletScore}`, active: filters.minWalletScore > 0 },
-      { icon: Sparkles, label: "Fresh", active: filters.freshWalletsOnly },
-    ];
     return (
-      <aside className="h-full w-full border-r border-border bg-card flex flex-col items-center py-2 gap-1">
-        <button
-          onClick={onToggleCollapsed}
-          aria-label="Expand filters"
-          title="Expand filters"
-          className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-        <div className="h-px w-8 bg-border my-1" />
-        <button
-          onClick={onToggleCollapsed}
-          title="Filters"
-          className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-surface-hover text-primary transition-colors"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-        </button>
-        {items.map((it, i) => {
-          const isFresh = it.icon === Sparkles;
-          const handleClick = isFresh
-            ? () => update({ freshWalletsOnly: !filters.freshWalletsOnly })
-            : onToggleCollapsed;
-          const freshActive = isFresh && filters.freshWalletsOnly;
-          return (
+      <>
+        <aside className="h-full w-full border-r border-border bg-card flex flex-col items-center py-2 gap-1">
+          <button
+            onClick={onToggleCollapsed}
+            aria-label="Expand filters"
+            title="Expand filters"
+            className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="h-px w-8 bg-border my-1" />
+          <button
+            onClick={onToggleCollapsed}
+            title="Filters"
+            className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-surface-hover text-primary transition-colors"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </button>
+          {drawerConfigs.map(({ id, Icon, label, active }) => (
             <button
-              key={i}
-              onClick={handleClick}
-              title={it.label}
-              aria-pressed={isFresh ? filters.freshWalletsOnly : undefined}
+              key={id}
+              onClick={() => setActiveDrawer(id)}
+              title={label}
               className={`h-9 w-9 flex items-center justify-center rounded-md hover:bg-surface-hover transition-all relative ${
-                freshActive
-                  ? "bg-primary/15 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.5)]"
-                  : it.active
-                  ? "text-foreground"
-                  : "text-muted-foreground/50"
+                active ? "text-foreground" : "text-muted-foreground/50"
               }`}
             >
-              <it.icon
-                className={`h-4 w-4 transition-all ${
-                  freshActive ? "text-primary drop-shadow-[0_0_6px_hsl(var(--primary))]" : ""
-                }`}
-              />
-              {it.active && !freshActive && <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}
+              <Icon className="h-4 w-4" />
+              {active && <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}
             </button>
-          );
-        })}
-      </aside>
+          ))}
+          <button
+            onClick={() => update({ freshWalletsOnly: !filters.freshWalletsOnly })}
+            title={`Fresh wallets only: ${filters.freshWalletsOnly ? "on" : "off"}`}
+            aria-pressed={filters.freshWalletsOnly}
+            className={`h-9 w-9 flex items-center justify-center rounded-md hover:bg-surface-hover transition-all relative ${
+              filters.freshWalletsOnly
+                ? "bg-primary/15 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.5)]"
+                : "text-muted-foreground/50"
+            }`}
+          >
+            <Sparkles
+              className={`h-4 w-4 transition-all ${
+                filters.freshWalletsOnly ? "text-primary drop-shadow-[0_0_6px_hsl(var(--primary))]" : ""
+              }`}
+            />
+          </button>
+        </aside>
+
+        {drawerConfigs.map(({ id, Icon, title, description, node }) => (
+          <Sheet key={id} open={activeDrawer === id} onOpenChange={(o) => !o && setActiveDrawer(null)}>
+            <SheetContent side="left" className="w-72 p-0 bg-card border-r border-border">
+              <SheetHeader className="px-4 py-3 border-b border-border">
+                <SheetTitle className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Icon className="h-3.5 w-3.5 text-primary" />
+                  {title}
+                </SheetTitle>
+                <p className="text-[11px] text-muted-foreground">{description}</p>
+              </SheetHeader>
+              <div className="p-4">{node}</div>
+            </SheetContent>
+          </Sheet>
+        ))}
+      </>
     );
   }
 

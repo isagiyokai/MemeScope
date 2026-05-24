@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import { Signal, Filters, defaultFilters } from "@/lib/mockData";
 import TopBar from "@/components/TopBar";
 import FilterPanel from "@/components/FilterPanel";
@@ -21,6 +22,15 @@ const Index = () => {
   const [filterRailCollapsed, setFilterRailCollapsed] = useState(false);
   const [activityCollapsed, setActivityCollapsed] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
+  const filterPanelRef = useRef<ImperativePanelHandle>(null);
+
+  const handleToggleFilter = useCallback(() => {
+    if (filterRailCollapsed) {
+      filterPanelRef.current?.expand();
+    } else {
+      filterPanelRef.current?.collapse();
+    }
+  }, [filterRailCollapsed]);
   const isMobile = useIsMobile();
 
   // Tablet = >= 768 and < 1280 (use detail as overlay instead of column)
@@ -158,92 +168,84 @@ const Index = () => {
     );
   }
 
-  // Desktop: hybrid collapsible rail
+  // Desktop: collapsible filter rail stays inside the group — feed size consistent
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       <TopBar />
-      <div className="flex-1 overflow-hidden flex">
-        {filterRailCollapsed ? (
-          <div className="w-12 shrink-0">
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" autoSaveId="memescope-main-h">
+          <ResizablePanel
+            ref={filterPanelRef}
+            collapsible
+            collapsedSize={4}
+            defaultSize={16}
+            minSize={12}
+            maxSize={30}
+            onCollapse={() => setFilterRailCollapsed(true)}
+            onExpand={() => setFilterRailCollapsed(false)}
+          >
             <FilterPanel
               filters={filters}
               onChange={setFilters}
-              collapsed
-              onToggleCollapsed={() => setFilterRailCollapsed(false)}
+              collapsed={filterRailCollapsed}
+              onToggleCollapsed={handleToggleFilter}
             />
-          </div>
-        ) : null}
-
-        <div className="flex-1 overflow-hidden">
-          <ResizablePanelGroup direction="horizontal" autoSaveId="memescope-main-h">
-            {!filterRailCollapsed && (
-              <>
-                <ResizablePanel defaultSize={16} minSize={12} maxSize={30}>
-                  <FilterPanel
-                    filters={filters}
-                    onChange={setFilters}
-                    onToggleCollapsed={() => setFilterRailCollapsed(true)}
-                  />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={84} minSize={40}>
+            {activityCollapsed ? (
+              <div className="h-full flex flex-col">
+                <div className="flex-1 overflow-hidden">
+                  <ResizablePanelGroup direction="horizontal" autoSaveId="memescope-feed-h">
+                    <ResizablePanel defaultSize={selectedSignal ? 70 : 100} minSize={30}>
+                      <AlphaFeed onSelectSignal={setSelectedSignal} filters={filters} />
+                    </ResizablePanel>
+                    {selectedSignal && (
+                      <>
+                        <ResizableHandle withHandle />
+                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                          <DetailPanel
+                            signal={selectedSignal}
+                            onClose={() => setSelectedSignal(null)}
+                          />
+                        </ResizablePanel>
+                      </>
+                    )}
+                  </ResizablePanelGroup>
+                </div>
+                <ActivityLog
+                  collapsed
+                  onToggleCollapsed={() => setActivityCollapsed(false)}
+                />
+              </div>
+            ) : (
+              <ResizablePanelGroup direction="vertical" autoSaveId="memescope-main-v">
+                <ResizablePanel defaultSize={78} minSize={30}>
+                  <ResizablePanelGroup direction="horizontal" autoSaveId="memescope-feed-h">
+                    <ResizablePanel defaultSize={selectedSignal ? 70 : 100} minSize={30}>
+                      <AlphaFeed onSelectSignal={setSelectedSignal} filters={filters} />
+                    </ResizablePanel>
+                    {selectedSignal && (
+                      <>
+                        <ResizableHandle withHandle />
+                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                          <DetailPanel
+                            signal={selectedSignal}
+                            onClose={() => setSelectedSignal(null)}
+                          />
+                        </ResizablePanel>
+                      </>
+                    )}
+                  </ResizablePanelGroup>
                 </ResizablePanel>
                 <ResizableHandle withHandle />
-              </>
+                <ResizablePanel defaultSize={22} minSize={8} maxSize={60}>
+                  <ActivityLog onToggleCollapsed={() => setActivityCollapsed(true)} />
+                </ResizablePanel>
+              </ResizablePanelGroup>
             )}
-
-            <ResizablePanel defaultSize={84} minSize={40}>
-              {activityCollapsed ? (
-                <div className="h-full flex flex-col">
-                  <div className="flex-1 overflow-hidden">
-                    <ResizablePanelGroup direction="horizontal" autoSaveId="memescope-feed-h">
-                      <ResizablePanel defaultSize={selectedSignal ? 70 : 100} minSize={30}>
-                        <AlphaFeed onSelectSignal={setSelectedSignal} filters={filters} />
-                      </ResizablePanel>
-                      {selectedSignal && (
-                        <>
-                          <ResizableHandle withHandle />
-                          <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-                            <DetailPanel
-                              signal={selectedSignal}
-                              onClose={() => setSelectedSignal(null)}
-                            />
-                          </ResizablePanel>
-                        </>
-                      )}
-                    </ResizablePanelGroup>
-                  </div>
-                  <ActivityLog
-                    collapsed
-                    onToggleCollapsed={() => setActivityCollapsed(false)}
-                  />
-                </div>
-              ) : (
-                <ResizablePanelGroup direction="vertical" autoSaveId="memescope-main-v">
-                  <ResizablePanel defaultSize={78} minSize={30}>
-                    <ResizablePanelGroup direction="horizontal" autoSaveId="memescope-feed-h">
-                      <ResizablePanel defaultSize={selectedSignal ? 70 : 100} minSize={30}>
-                        <AlphaFeed onSelectSignal={setSelectedSignal} filters={filters} />
-                      </ResizablePanel>
-                      {selectedSignal && (
-                        <>
-                          <ResizableHandle withHandle />
-                          <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-                            <DetailPanel
-                              signal={selectedSignal}
-                              onClose={() => setSelectedSignal(null)}
-                            />
-                          </ResizablePanel>
-                        </>
-                      )}
-                    </ResizablePanelGroup>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel defaultSize={22} minSize={8} maxSize={60}>
-                    <ActivityLog onToggleCollapsed={() => setActivityCollapsed(true)} />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
-              )}
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   );
