@@ -29,13 +29,15 @@ def _get_engine():
         url = _get_url()
         if not url:
             raise RuntimeError("DATABASE_URL is not configured")
-        _engine = create_async_engine(
-            url,
-            echo=settings.database.echo,
-            pool_size=settings.database.pool_size,
-            max_overflow=settings.database.max_overflow,
-            future=True,
-        )
+        kwargs: dict = {"echo": settings.database.echo, "future": True}
+        if "sqlite" in url:
+            from sqlalchemy.pool import StaticPool
+            kwargs["poolclass"] = StaticPool
+            kwargs["connect_args"] = {"check_same_thread": False}
+        else:
+            kwargs["pool_size"] = settings.database.pool_size
+            kwargs["max_overflow"] = settings.database.max_overflow
+        _engine = create_async_engine(url, **kwargs)
     return _engine
 
 

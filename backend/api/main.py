@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from api.middleware.rate_limit import RateLimitMiddleware
 
 from config.settings import get_settings
 from config.logging import configure_logging, get_logger
@@ -64,6 +65,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware, calls=200, period=60)
 
 app.include_router(health.router, prefix="/api/v1/health", tags=["health"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
