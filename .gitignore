@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+
+# Extra
+.claude/
+
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.rate_state.json
+
+# Logs
+*.log
+*.out.log
+*.err.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+.npm
+
+# Frontend build
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+*.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc scripts created during dev
+backend/_check_*.py
+backend/_create_*.py
+backend/_force_*.py

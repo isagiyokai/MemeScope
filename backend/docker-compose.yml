@@ -1,0 +1,78 @@
+﻿services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  parser-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["python", "-c", "import asyncio; from workers.parser_worker import run_parser_worker; asyncio.run(run_parser_worker())"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  signal-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["python", "-c", "import asyncio; from workers.signal_worker import run_signal_worker; asyncio.run(run_signal_worker())"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  holder-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["python", "-c", "import asyncio; from workers.holder_worker import run_holder_worker; asyncio.run(run_holder_worker())"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  pumpfun-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["python", "-c", "import asyncio; from workers.pumpfun_worker import run_pumpfun_worker; asyncio.run(run_pumpfun_worker())"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: memescope
+      POSTGRES_PASSWORD: memescope
+      POSTGRES_DB: memescope
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
