@@ -4,9 +4,9 @@ Real-time behavioral intelligence engine for Solana memecoins. Tracks Top 10 hol
 
 ## What It Is
 
-Not a chart app. Not a price tracker.
+This is not a price tracker nor is it a chart app
 
-A system that answers one question:
+It is a system that answers one question:
 
 > Is this token worth entering **before** it moves?
 
