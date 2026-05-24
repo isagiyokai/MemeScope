@@ -144,12 +144,12 @@ const HamburgerMenu = () => {
 
             <Section label="Resources">
               <RowAnchor
-                href="https://docs.lovable.dev"
+                href="https://github.com/isagiyokai/MemeScope/blob/main/README.md"
                 icon={<BookOpen className="h-4 w-4 text-muted-foreground" />}
                 label="Documentation"
               />
               <RowAnchor
-                href="https://github.com"
+                href="https://github.com/isagiyokai/MemeScope"
                 icon={<Github className="h-4 w-4 text-muted-foreground" />}
                 label="GitHub"
               />
