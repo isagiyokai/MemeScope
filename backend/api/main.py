@@ -1,3 +1,5 @@
+import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,6 +11,12 @@ from config.logging import configure_logging, get_logger
 from core.db import create_tables, engine
 from core.redis import close_redis
 from api.routes import tokens, wallets, holders, signals, clusters, health, stats
+
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
 
 try:
     from services.scheduler.jobs import start_scheduler, shutdown_scheduler
@@ -26,10 +34,23 @@ logger = get_logger(__name__)
 settings.validate_security()
 
 
+def _run_alembic_upgrade() -> None:
+    """Run Alembic migrations synchronously (called from a thread executor)."""
+    from alembic.config import Config
+    from alembic import command
+    alembic_ini = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "alembic.ini")
+    cfg = Config(os.path.abspath(alembic_ini))
+    command.upgrade(cfg, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up", version=settings.app.version)
-    await create_tables()
+    if settings.app.env == "production":
+        # Run Alembic in a thread — env.py calls asyncio.run() internally
+        await asyncio.get_event_loop().run_in_executor(None, _run_alembic_upgrade)
+    else:
+        await create_tables()
     if _SCHEDULER_AVAILABLE:
         start_scheduler()
     yield
@@ -77,6 +98,9 @@ app.include_router(clusters.router, prefix="/api/v1/clusters", tags=["clusters"]
 
 from api.websocket.signal_stream import signal_stream
 app.add_websocket_route("/ws/signals", signal_stream)
+
+if _PROMETHEUS_AVAILABLE:
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 @app.get("/health")
