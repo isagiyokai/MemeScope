@@ -116,6 +116,11 @@ if _PROMETHEUS_AVAILABLE:
         return _Resp(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+@app.get("/")
+async def root():
+    return {"service": "MemeScope", "status": "online", "version": settings.app.version}
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
