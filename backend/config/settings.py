@@ -1,8 +1,10 @@
+import json
 import os
 from functools import lru_cache
 from typing import Optional
 
 from dotenv import dotenv_values
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -65,6 +67,21 @@ class AppSettings(BaseSettings):
     # Default to localhost dev origins only — set APP_CORS_ORIGINS in production
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
     host: str = "0.0.0.0"
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, list):
+            return v
+        if not v or not str(v).strip():
+            return ["http://localhost:5173", "http://localhost:3000"]
+        s = str(v).strip()
+        if s.startswith("["):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                pass
+        return [origin.strip() for origin in s.split(",") if origin.strip()]
     port: int = 8000
     reload: bool = False
     api_key: str = ""  # Set APP_API_KEY to require key on write endpoints + WebSocket
