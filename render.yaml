@@ -26,42 +26,14 @@ services:
       - key: APP_API_KEY
         sync: false
 
-  # ── Workers ──────────────────────────────────────────────────────────────────
+  # ── Workers (all 4 in one process) ──────────────────────────────────────────
   - type: worker
-    name: memescope-parser
+    name: memescope-workers
     env: python
     region: oregon
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=$(pwd) python start_worker.py parser
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: HELIUS_API_KEY
-        sync: false
-
-  - type: worker
-    name: memescope-signal
-    env: python
-    region: oregon
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=$(pwd) python start_worker.py signal
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-
-  - type: worker
-    name: memescope-holder
-    env: python
-    region: oregon
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=$(pwd) python start_worker.py holder
+    startCommand: PYTHONPATH=$(pwd) python -m workers.main
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -71,16 +43,5 @@ services:
         sync: false
       - key: BIRDEYE_API_KEY
         sync: false
-
-  - type: worker
-    name: memescope-pumpfun
-    env: python
-    region: oregon
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=$(pwd) python start_worker.py pumpfun
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
+      - key: APP_ENV
+        value: production
