@@ -32,14 +32,17 @@ async def main():
     from workers.signal_worker import run_signal_worker
     from workers.holder_worker import run_holder_worker
     from workers.pumpfun_worker import run_pumpfun_worker
+    from services.ingestion.ingestion import PumpfunListener
 
     logger.info("Starting all workers")
+    listener = PumpfunListener()
     await asyncio.gather(
         _health_server(),
         run_parser_worker(),
         run_signal_worker(),
         run_holder_worker(),
         run_pumpfun_worker(),
+        listener.run(),
     )
 
 

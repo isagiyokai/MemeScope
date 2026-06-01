@@ -1,5 +1,8 @@
 import asyncio
+import re
 from datetime import datetime, timezone
+
+_SOLANA_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{43,44}$")
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -36,6 +39,9 @@ async def _refresh_holders():
         try:
             tracker = Top10Tracker(session, helius)
             for token in tokens:
+                if not _SOLANA_ADDRESS_RE.match(token.mint_address or ""):
+                    logger.warning("Scheduler skipping invalid mint", mint=token.mint_address)
+                    continue
                 try:
                     total_supply = token.total_supply if token else None
                     await tracker.fetch_and_store(token.mint_address, total_supply)
@@ -95,11 +101,8 @@ async def _detect_clusters():
 
 
 async def _ingest_pumpfun():
-    try:
-        enqueued = await enqueue_pumpfun_launches()
-        logger.info("Scheduled Pump.fun ingestion done", enqueued=enqueued)
-    except Exception as e:
-        logger.error("Pump.fun ingestion failed", error=str(e))
+    # Pumpfun ingestion handled by PumpfunListener WebSocket stream in workers process
+    pass
 
 
 def start_scheduler():
