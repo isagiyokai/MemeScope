@@ -14,7 +14,6 @@ settings = get_settings()
 RAW_TX_QUEUE = "raw_tx_queue"
 PUMPFUN_LAUNCH_QUEUE = "pumpfun_launch_queue"
 SIGNAL_EVAL_QUEUE = "signal_eval_queue"
-RETRYABLE = (httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError)
 
 
 class HeliusListener:

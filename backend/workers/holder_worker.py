@@ -1,4 +1,5 @@
 import asyncio
+import re
 from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
@@ -15,8 +16,13 @@ logger = get_logger(__name__)
 
 HOLDER_UPDATE_QUEUE = "holder_update_queue"
 
+_SOLANA_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+
 
 async def refresh_token_holders(token_mint: str) -> None:
+    if not token_mint or not _SOLANA_ADDRESS_RE.match(token_mint):
+        logger.warning("Skipping invalid token mint address", mint=repr(token_mint))
+        return
     async with AsyncSessionLocal() as session:
         helius = HeliusClient()
         try:
