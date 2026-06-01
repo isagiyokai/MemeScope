@@ -26,14 +26,15 @@ services:
       - key: APP_API_KEY
         sync: false
 
-  # ── Workers (all 4 in one process) ──────────────────────────────────────────
-  - type: worker
+  # ── Workers (all 4 in one web service process) ──────────────────────────────
+  - type: web
     name: memescope-workers
     env: python
     region: oregon
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: PYTHONPATH=$(pwd) python -m workers.main
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         sync: false
