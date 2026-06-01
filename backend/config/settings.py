@@ -4,7 +4,6 @@ from functools import lru_cache
 from typing import Optional
 
 from dotenv import dotenv_values
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,29 +63,26 @@ class AppSettings(BaseSettings):
     debug: bool = False
     env: str = "development"
     log_level: str = "INFO"
-    # Default to localhost dev origins only — set APP_CORS_ORIGINS in production
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # Stored as str so pydantic-settings never JSON-decodes an empty env var.
+    # Use get_cors_origins() to get the parsed list.
+    cors_origins: str = '["http://localhost:5173","http://localhost:3000"]'
     host: str = "0.0.0.0"
-
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, list):
-            return v
-        if not v or not str(v).strip():
-            return ["http://localhost:5173", "http://localhost:3000"]
-        s = str(v).strip()
-        if s.startswith("["):
-            try:
-                return json.loads(s)
-            except json.JSONDecodeError:
-                pass
-        return [origin.strip() for origin in s.split(",") if origin.strip()]
     port: int = 8000
     reload: bool = False
     api_key: str = ""  # Set APP_API_KEY to require key on write endpoints + WebSocket
 
     model_config = SettingsConfigDict(env_prefix="APP_")
+
+    def get_cors_origins(self) -> list[str]:
+        v = self.cors_origins.strip()
+        if not v:
+            return ["http://localhost:5173", "http://localhost:3000"]
+        if v.startswith("["):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                pass
+        return [o.strip() for o in v.split(",") if o.strip()]
 
 
 class PumpAPISettings(BaseSettings):
@@ -140,7 +136,7 @@ class Settings(BaseSettings):
             errors.append("JWT_SECRET_KEY is not set — token signing is disabled")
         elif len(self.jwt.secret_key) < 32:
             errors.append("JWT_SECRET_KEY is too short (minimum 32 characters)")
-        if self.app.env != "development" and "*" in self.app.cors_origins:
+        if self.app.env != "development" and "*" in self.app.get_cors_origins():
             errors.append("APP_CORS_ORIGINS must not be '*' in non-development environments")
         if errors:
             import warnings

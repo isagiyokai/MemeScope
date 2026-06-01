@@ -78,10 +78,11 @@ app = FastAPI(
 
 # Never combine allow_origins=["*"] with allow_credentials=True (browser security).
 # When origins are explicit, credentials (cookies/auth headers) are allowed.
-_wildcard = settings.app.cors_origins == ["*"]
+_cors_origins = settings.app.get_cors_origins()
+_wildcard = _cors_origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.app.cors_origins,
+    allow_origins=_cors_origins,
     allow_credentials=not _wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
