@@ -82,7 +82,12 @@ class PumpfunListener:
         from clients.pumpapi_client import PumpAPIClient
         self.client = PumpAPIClient()
 
+    _logged_sample = False
+
     async def _handle_event(self, event: dict) -> None:
+        if not PumpfunListener._logged_sample:
+            PumpfunListener._logged_sample = True
+            logger.info("PumpAPI first event sample", event=event)
         tx_type = event.get("txType", "")
         logger.debug("PumpAPI event received", tx_type=tx_type, mint=event.get("mint"), sig=str(event.get("signature", ""))[:12])
         try:
