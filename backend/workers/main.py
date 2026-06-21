@@ -36,6 +36,7 @@ async def main():
 
     logger.info("Starting all workers")
     listener = PumpfunListener()
+    logger.info("PumpfunListener instantiated — scheduling in gather")
     await asyncio.gather(
         _health_server(),
         run_parser_worker(),

@@ -84,12 +84,20 @@ class PumpfunListener:
 
     async def _handle_event(self, event: dict) -> None:
         tx_type = event.get("txType", "")
-        redis = await get_redis()
+        logger.debug("PumpAPI event received", tx_type=tx_type, mint=event.get("mint"), sig=str(event.get("signature", ""))[:12])
+        try:
+            redis = await get_redis()
+        except Exception:
+            logger.exception("PumpAPI _handle_event: failed to get Redis connection")
+            return
 
         if tx_type == "create":
             # New token launch — enqueue for pumpfun_worker
-            await redis.lpush(PUMPFUN_LAUNCH_QUEUE, json.dumps(event))
-            logger.info("Pump.fun launch enqueued", mint=event.get("mint"))
+            try:
+                await redis.lpush(PUMPFUN_LAUNCH_QUEUE, json.dumps(event))
+                logger.info("Pump.fun launch enqueued", mint=event.get("mint"), name=event.get("name"), symbol=event.get("symbol"))
+            except Exception:
+                logger.exception("Pump.fun launch enqueue failed", mint=event.get("mint"))
 
         elif tx_type == "trade":
             # Buy/sell — normalise into raw_tx_queue format for parser_worker
@@ -101,11 +109,28 @@ class PumpfunListener:
                     "_pumpapi": event,  # parser can read raw event fields
                 },
             }
-            await redis.lpush(RAW_TX_QUEUE, json.dumps(payload))
+            try:
+                await redis.lpush(RAW_TX_QUEUE, json.dumps(payload))
+                logger.info(
+                    "Pump.fun trade enqueued",
+                    mint=event.get("mint"),
+                    is_buy=event.get("isBuy"),
+                    sol=event.get("solAmount"),
+                    sig=str(event.get("signature", ""))[:12],
+                )
+            except Exception:
+                logger.exception("Pump.fun trade enqueue failed", mint=event.get("mint"))
+
+        else:
+            logger.debug("PumpAPI unhandled txType", tx_type=tx_type, mint=event.get("mint"))
 
     async def run(self) -> None:
         """Blocking stream loop — reconnects on disconnect."""
-        await self.client.stream_events(self._handle_event)
+        logger.info("PumpfunListener.run() started — entering stream loop")
+        try:
+            await self.client.stream_events(self._handle_event)
+        except Exception:
+            logger.exception("PumpfunListener.run() exited with unhandled exception")
 
     async def close(self):
         await self.client.close()

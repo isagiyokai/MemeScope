@@ -36,7 +36,10 @@ class PumpAPIClient:
         Connect and stream all events, calling callback for each.
         Reconnects automatically on disconnect until close() is called.
         """
+        attempt = 0
         while not self._closed:
+            attempt += 1
+            logger.info("PumpAPI connect attempt", url=self.stream_url, attempt=attempt)
             try:
                 async with websockets.connect(
                     self.stream_url,
@@ -44,17 +47,22 @@ class PumpAPIClient:
                     ping_timeout=10,
                 ) as ws:
                     self._ws = ws
-                    logger.info("PumpAPI stream connected", url=self.stream_url)
+                    logger.info("PumpAPI stream connected", url=self.stream_url, attempt=attempt)
+                    msg_count = 0
                     async for raw in ws:
                         if self._closed:
                             break
+                        msg_count += 1
+                        if msg_count % 100 == 1:
+                            logger.info("PumpAPI messages received", total=msg_count)
                         try:
                             event = json.loads(raw if isinstance(raw, str) else raw.decode("utf-8"))
                             await callback(event)
                         except json.JSONDecodeError:
                             logger.warning("PumpAPI bad JSON", raw=str(raw)[:200])
-                        except Exception as e:
-                            logger.error("PumpAPI callback error", error=str(e))
+                        except Exception:
+                            logger.exception("PumpAPI callback error")
+                    logger.info("PumpAPI ws loop exited cleanly", msg_count=msg_count)
             except ConnectionClosed as e:
                 if self._closed:
                     break
@@ -63,12 +71,12 @@ class PumpAPIClient:
             except WebSocketException as e:
                 if self._closed:
                     break
-                logger.error("PumpAPI WebSocket error, reconnecting", error=str(e), delay=reconnect_delay)
+                logger.exception("PumpAPI WebSocket error, reconnecting", delay=reconnect_delay)
                 await asyncio.sleep(reconnect_delay)
-            except Exception as e:
+            except Exception:
                 if self._closed:
                     break
-                logger.error("PumpAPI unexpected error, reconnecting", error=str(e), delay=reconnect_delay)
+                logger.exception("PumpAPI unexpected error, reconnecting", delay=reconnect_delay)
                 await asyncio.sleep(reconnect_delay)
 
     async def connect_once(self, timeout: float = 30.0) -> bool:
