@@ -134,7 +134,7 @@ class PumpfunTracker:
             decimals=raw_launch.get("decimals", 6),
             total_supply=raw_launch.get("total_supply"),
             circulating_supply=raw_launch.get("circulating_supply"),
-            creator_wallet=raw_launch.get("creator") or raw_launch.get("creator_wallet"),
+            creator_wallet=raw_launch.get("txSigner") or raw_launch.get("creator") or raw_launch.get("creator_wallet"),
             launch_platform="pumpfun",
             launch_timestamp=datetime.now(timezone.utc),
             current_price=raw_launch.get("price"),
@@ -151,8 +151,8 @@ class PumpfunTracker:
             logger.error("Failed to persist Pump.fun launch from queue", mint=mint, error=str(e))
             return None
 
-        # Persist creator wallet
-        creator = raw_launch.get("creator") or raw_launch.get("creator_wallet")
+        # Persist creator wallet — PumpAPI uses txSigner for creator address
+        creator = raw_launch.get("txSigner") or raw_launch.get("creator") or raw_launch.get("creator_wallet")
         if creator:
             existing_wallet = await self.wallet_repo.get_by_address(creator)
             if not existing_wallet:
