@@ -88,7 +88,15 @@ class PumpfunListener:
         if not PumpfunListener._logged_sample:
             PumpfunListener._logged_sample = True
             logger.info("PumpAPI first event sample", event=event)
-        tx_type = event.get("txType", "")
+
+        # txType field absent in many streams — fall back to field-presence detection
+        tx_type = event.get("txType") or event.get("type") or ""
+        if not tx_type:
+            if "isBuy" in event or "solAmount" in event:
+                tx_type = "trade"
+            elif event.get("name") and event.get("symbol") and event.get("mint"):
+                tx_type = "create"
+
         logger.debug("PumpAPI event received", tx_type=tx_type, mint=event.get("mint"), sig=str(event.get("signature", ""))[:12])
         try:
             redis = await get_redis()
