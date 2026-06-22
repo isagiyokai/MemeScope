@@ -70,6 +70,7 @@ class AppSettings(BaseSettings):
     port: int = 8000
     reload: bool = False
     api_key: str = ""  # Set APP_API_KEY to require key on write endpoints + WebSocket
+    signal_cold_start_mode: bool = True  # Set APP_SIGNAL_COLD_START_MODE=false to use production thresholds
 
     model_config = SettingsConfigDict(env_prefix="APP_")
 

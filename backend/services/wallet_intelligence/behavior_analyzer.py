@@ -5,6 +5,7 @@ from statistics import stdev, mean
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repositories.trade_repo import TradeRepository
+from services import metrics
 from config.logging import get_logger
 from config.constants import (
     MIN_TRADES_FOR_SCORE,
@@ -33,12 +34,9 @@ class BehaviorAnalyzer:
             first_buy = next((t for t in trades if t.side == "BUY"), None)
             if not first_buy:
                 continue
-            # Heuristic: earlier entry in token lifecycle = higher score
-            # Use slot as proxy for token age if available
             slot = first_buy.slot or 0
             if slot == 0:
                 continue
-            # Lower slot = earlier = higher score (simplified)
             scores.append(100.0)
         if not scores:
             return None
@@ -83,7 +81,6 @@ class BehaviorAnalyzer:
             std = stdev(rois)
         except Exception:
             std = 0.0
-        # Lower std dev relative to mean = higher consistency
         if avg == 0:
             return 50.0
         cv = std / abs(avg) if avg != 0 else 0.0
@@ -110,16 +107,37 @@ class BehaviorAnalyzer:
         if consistency is None:
             consistency = await self.consistency_score(address)
 
-        if None in (win_rate, avg_roi, timing, consistency):
+        # Build score from whichever components are available.
+        # Weights are renormalized so missing components don't penalize the score.
+        component_map: dict[str, tuple[Optional[float], float]] = {
+            "win_rate":    (win_rate * 100 if win_rate is not None else None,  WINRATE_WEIGHT),
+            "avg_roi":     (
+                max(0, min(100, (avg_roi + 1.0) * 50)) if avg_roi is not None else None,
+                ROI_WEIGHT,
+            ),
+            "timing":      (timing,      TIMING_WEIGHT),
+            "consistency": (consistency, CONSISTENCY_WEIGHT),
+        }
+
+        available = {k: (v, w) for k, (v, w) in component_map.items() if v is not None}
+        missing   = [k for k, (v, _) in component_map.items() if v is None]
+
+        if not available:
+            logger.debug("Wallet unscorable — no components available", wallet=address)
+            metrics.increment("wallets_unscorable_total")
             return None
 
-        # Normalize ROI to 0-100 scale (cap at +/- 500%)
-        roi_norm = max(0, min(100, (avg_roi + 1.0) * 50))
+        total_weight = sum(w for _, w in available.values())
+        score = sum(v * w / total_weight for v, w in available.values())
+        score = round(score, 2)
 
-        score = (
-            (win_rate * 100) * WINRATE_WEIGHT +
-            roi_norm * ROI_WEIGHT +
-            timing * TIMING_WEIGHT +
-            consistency * CONSISTENCY_WEIGHT
+        logger.debug(
+            "Wallet scored",
+            wallet=address,
+            score=score,
+            components_used=list(available.keys()),
+            components_missing=missing,
         )
-        return round(score, 2)
+        metrics.increment("wallets_scored_total")
+
+        return score

@@ -6,8 +6,14 @@ from api.dependencies import get_db
 from models.signal import Signal
 from models.wallet import Wallet
 from models.token import Token
+from services import metrics
 
 router = APIRouter()
+
+
+@router.get("/metrics")
+async def get_metrics():
+    return metrics.get_all()
 
 
 @router.get("")
