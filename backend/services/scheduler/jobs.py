@@ -100,6 +100,20 @@ async def _detect_clusters():
             logger.error("Cluster detection failed", error=str(e))
 
 
+async def _refresh_trades():
+    async with AsyncSessionLocal() as session:
+        from services.trades.trade_poller import TradePoller
+        poller = TradePoller(session)
+        try:
+            results = await poller.poll_all_tracked(limit=30)
+            total = sum(results.values())
+            logger.info("Scheduled trade poll done", tokens=len(results), enqueued=total)
+        except Exception as e:
+            logger.error("Trade poll failed", error=str(e))
+        finally:
+            await poller.close()
+
+
 async def _ingest_pumpfun():
     # Pumpfun ingestion handled by PumpfunListener WebSocket stream in workers process
     pass
@@ -137,6 +151,13 @@ def start_scheduler():
         _detect_clusters,
         trigger=IntervalTrigger(minutes=10),
         id="detect_clusters",
+        replace_existing=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _refresh_trades,
+        trigger=IntervalTrigger(seconds=60),
+        id="refresh_trades",
         replace_existing=True,
         max_instances=1,
     )

@@ -10,7 +10,9 @@ from core.redis import get_redis
 from clients.helius_client import HeliusClient
 from services.parser.event_normalizer import normalize_event
 from repositories.trade_repo import TradeRepository
+from repositories.wallet_repo import WalletRepository
 from schemas.trade_schema import TradeCreate
+from schemas.wallet_schema import WalletCreate
 from config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,6 +59,21 @@ async def process_raw_tx(raw: dict) -> None:
         except Exception as e:
             logger.error("Failed to store trade", tx=signature, error=str(e))
             await session.rollback()
+            return
+
+    # Ensure wallet stub exists with composite_score=0.0 so rescore job picks it up.
+    # Separate session so trade commit is not rolled back on wallet conflict.
+    wallet_address = event.get("wallet_address")
+    if wallet_address:
+        async with AsyncSessionLocal() as wsession:
+            wallet_repo = WalletRepository(wsession)
+            try:
+                existing = await wallet_repo.get_by_address(wallet_address)
+                if not existing:
+                    await wallet_repo.create(WalletCreate(address=wallet_address, composite_score=0.0))
+                    logger.debug("Wallet stub created", wallet=wallet_address)
+            except Exception as e:
+                logger.error("Failed to create wallet stub", wallet=wallet_address, error=str(e))
 
 
 async def run_parser_worker():

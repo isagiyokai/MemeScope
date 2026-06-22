@@ -46,6 +46,12 @@ class TokenRepository:
         await self.session.commit()
         return await self.get_by_mint(mint)
 
+    async def update_last_trade_sig(self, mint: str, sig: str) -> None:
+        await self.session.execute(
+            update(Token).where(Token.mint_address == mint).values(last_trade_sig=sig)
+        )
+        await self.session.commit()
+
     async def set_tracking(self, mint: str, tracking: bool = True) -> Optional[Token]:
         await self.session.execute(
             update(Token).where(Token.mint_address == mint).values(is_tracking=tracking)

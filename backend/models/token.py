@@ -27,6 +27,7 @@ class Token(Base):
     volume_24h = Column(Float, nullable=True)
     holder_count = Column(Integer, nullable=True)
     is_tracking = Column(Boolean, default=True)
+    last_trade_sig = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
