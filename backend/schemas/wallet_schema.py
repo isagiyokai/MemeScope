@@ -18,7 +18,7 @@ class WalletBase(BaseModel):
     entry_timing_score: Optional[float] = None
     hold_duration_avg: Optional[float] = None
     consistency_score: Optional[float] = None
-    composite_score: Optional[float] = None
+    composite_score: Optional[float] = 0.0
     cluster_id: Optional[str] = None
     tags: Optional[str] = None
 

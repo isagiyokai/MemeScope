@@ -56,7 +56,7 @@ async def _refresh_holders():
 async def _rescore_wallets():
     async with AsyncSessionLocal() as session:
         wallet_repo = WalletRepository(session)
-        high_score_wallets = await wallet_repo.list_high_score(min_score=0.0, limit=500)
+        high_score_wallets = await wallet_repo.list_high_score(min_score=0.0, limit=2000)
         analyzer = BehaviorAnalyzer(session)
         rescored = skipped = failed = 0
         for wallet in high_score_wallets:
