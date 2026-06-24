@@ -84,6 +84,7 @@ class PumpfunListener:
 
     _logged_sample = False
     _trade_event_count = 0
+    _field_audit_count = 0
     _logged_event_fingerprints: set = set()
 
     async def _handle_event(self, event: dict) -> None:
@@ -115,6 +116,25 @@ class PumpfunListener:
             )
             if has_trade_fields:
                 tx_type = "trade"
+                # Field audit: identify exactly which field triggered classification
+                if PumpfunListener._field_audit_count < 20:
+                    PumpfunListener._field_audit_count += 1
+                    matched = (
+                        "isBuy" if "isBuy" in event else
+                        "solAmount" if "solAmount" in event else
+                        "tokenAmount" if "tokenAmount" in event else
+                        "traderPublicKey" if event.get("traderPublicKey") else
+                        "trader" if event.get("trader") else
+                        "unknown"
+                    )
+                    logger.info(
+                        "PumpAPI trade field audit",
+                        n=PumpfunListener._field_audit_count,
+                        matched=matched,
+                        keys=sorted(event.keys()),
+                        mint=event.get("mint"),
+                        sig=str(event.get("signature", ""))[:12],
+                    )
             elif has_create_fields:
                 tx_type = "create"
             else:
