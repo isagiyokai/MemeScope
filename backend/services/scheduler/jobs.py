@@ -57,6 +57,7 @@ async def _rescore_wallets():
         wallet_repo = WalletRepository(session)
         high_score_wallets = await wallet_repo.list_high_score(min_score=0.0, limit=500)
         analyzer = BehaviorAnalyzer(session)
+        rescored = skipped = failed = 0
         for wallet in high_score_wallets:
             try:
                 timing = await analyzer.entry_timing_score(wallet.address)
@@ -68,6 +69,9 @@ async def _rescore_wallets():
                     timing=timing,
                     consistency=consistency,
                 )
+                if composite is None:
+                    skipped += 1
+                    continue
                 await wallet_repo.update_scores(
                     wallet.address,
                     entry_timing_score=timing,
@@ -75,9 +79,18 @@ async def _rescore_wallets():
                     composite_score=composite,
                     score_updated_at=datetime.now(timezone.utc),
                 )
+                rescored += 1
                 logger.info("Wallet rescored", wallet=wallet.address, composite=composite)
             except Exception as e:
+                failed += 1
                 logger.error("Wallet rescoring failed", wallet=wallet.address, error=str(e))
+        logger.info(
+            "Rescore cycle done",
+            selected=len(high_score_wallets),
+            rescored=rescored,
+            skipped=skipped,
+            failed=failed,
+        )
 
 
 async def _evaluate_signals():
