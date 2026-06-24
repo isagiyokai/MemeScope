@@ -93,6 +93,28 @@ class BirdeyeClient:
             logger.error("get_wallet_transactions failed", wallet=wallet, error=str(e))
             return []
 
+    async def get_token_overview(self, token_mint: str) -> Optional[dict]:
+        """
+        Fetch price, market cap, liquidity, 1h volume, and holder count.
+        Returns a normalized dict with keys:
+            price, market_cap, liquidity, volume_1h, holders_count
+        Returns None on any error.
+        """
+        try:
+            data = await self._get("/defi/token_overview", {"address": token_mint})
+            if not data:
+                return None
+            return {
+                "price": data.get("price"),
+                "market_cap": data.get("mc") or data.get("marketCap") or data.get("market_cap"),
+                "liquidity": data.get("liquidity"),
+                "volume_1h": data.get("v1hUSD") or data.get("volume1hUSD") or data.get("v1h"),
+                "holders_count": data.get("holder") or data.get("holders"),
+            }
+        except Exception as e:
+            logger.error("get_token_overview failed", token=token_mint, error=str(e))
+            return None
+
     async def close(self):
         if self.client and not self.client.is_closed:
             await self.client.aclose()

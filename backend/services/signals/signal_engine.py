@@ -52,6 +52,8 @@ class SignalEngine:
                         await publish_signal(signal)
                         signals.append(signal)
                         logger.info("Signal generated", token=token_mint, rule=result.source_rule, type=result.signal_type)
+                        from services.signals.snapshot_service import capture_signal_snapshot
+                        await capture_signal_snapshot(self.session, signal)
             except Exception as e:
                 logger.error("Rule evaluation failed", token=token_mint, rule=rule.__class__.__name__, error=str(e))
 
