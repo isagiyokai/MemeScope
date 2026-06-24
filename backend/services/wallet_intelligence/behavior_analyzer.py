@@ -24,23 +24,10 @@ class BehaviorAnalyzer:
         self.trade_repo = TradeRepository(session)
 
     async def entry_timing_score(self, address: str) -> Optional[float]:
-        tokens = await self.trade_repo.get_wallet_tokens(address)
-        scores = []
-        for token in tokens:
-            trades = await self.trade_repo.list_by_wallet_token(address, token)
-            if not trades:
-                continue
-            trades.sort(key=lambda t: t.timestamp)
-            first_buy = next((t for t in trades if t.side == "BUY"), None)
-            if not first_buy:
-                continue
-            slot = first_buy.slot or 0
-            if slot == 0:
-                continue
-            scores.append(100.0)
-        if not scores:
-            return None
-        return round(sum(scores) / len(scores), 2)
+        # Stub — returns None until real slot-age-vs-token-launch comparison is built.
+        # Old implementation hardcoded 100.0 for any BUY with non-zero slot,
+        # inflating composite scores on single-trade wallets to fake 100s.
+        return None
 
     async def hold_duration_avg(self, address: str) -> Optional[float]:
         tokens = await self.trade_repo.get_wallet_tokens(address)
