@@ -17,6 +17,7 @@ from services.clustering.cluster_detector import ClusterDetector
 from services.scheduler.pumpfun_job import enqueue_pumpfun_launches
 from repositories.token_repo import TokenRepository
 from repositories.wallet_repo import WalletRepository
+from services import metrics
 from config.logging import get_logger
 from config.constants import (
     HOLDER_SNAPSHOT_INTERVAL_SECONDS,
@@ -71,6 +72,7 @@ async def _rescore_wallets():
                 )
                 if composite is None:
                     skipped += 1
+                    metrics.increment("wallets_rescore_skipped_total")
                     continue
                 await wallet_repo.update_scores(
                     wallet.address,
@@ -80,9 +82,11 @@ async def _rescore_wallets():
                     score_updated_at=datetime.now(timezone.utc),
                 )
                 rescored += 1
+                metrics.increment("wallets_rescored_total")
                 logger.info("Wallet rescored", wallet=wallet.address, composite=composite)
             except Exception as e:
                 failed += 1
+                metrics.increment("wallets_rescore_failed_total")
                 logger.error("Wallet rescoring failed", wallet=wallet.address, error=str(e))
         logger.info(
             "Rescore cycle done",

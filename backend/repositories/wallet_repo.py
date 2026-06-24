@@ -36,7 +36,16 @@ class WalletRepository:
         )
         return result.scalars().all()
 
-    async def update_scores(self, address: str, **fields) -> Optional[Wallet]:
+    async def update_scores(self, address: str, force_null: bool = False, **fields) -> Optional[Wallet]:
+        if not force_null and "composite_score" in fields and fields["composite_score"] is None:
+            import logging
+            logging.getLogger(__name__).warning(
+                "update_scores: refusing composite_score=None for %s — use force_null=True to override",
+                address,
+            )
+            fields.pop("composite_score")
+        if not fields:
+            return await self.get_by_address(address)
         await self.session.execute(
             update(Wallet)
             .where(Wallet.address == address)
