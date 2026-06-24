@@ -24,10 +24,40 @@ class BehaviorAnalyzer:
         self.trade_repo = TradeRepository(session)
 
     async def entry_timing_score(self, address: str) -> Optional[float]:
-        # Stub — returns None until real slot-age-vs-token-launch comparison is built.
-        # Old implementation hardcoded 100.0 for any BUY with non-zero slot,
-        # inflating composite scores on single-trade wallets to fake 100s.
-        return None
+        """
+        Score based on relative buy rank per token.
+        Wallet that bought earliest among all observed buyers scores highest.
+        Rank 1 of N → 100. Last buyer → 0. Averaged across all tokens bought.
+        """
+        tokens = await self.trade_repo.get_wallet_tokens(address)
+        scores = []
+        for token in tokens:
+            wallet_trades = await self.trade_repo.list_by_wallet_token(address, token)
+            first_buy = next(
+                (t for t in sorted(wallet_trades, key=lambda t: t.timestamp) if t.side == "BUY"),
+                None,
+            )
+            if not first_buy:
+                continue
+            all_buys = await self.trade_repo.list_by_token(token, limit=1000)
+            all_buys_sorted = sorted(
+                [t for t in all_buys if t.side == "BUY"],
+                key=lambda t: t.timestamp,
+            )
+            if not all_buys_sorted:
+                continue
+            rank = next(
+                (i + 1 for i, t in enumerate(all_buys_sorted) if t.id == first_buy.id),
+                None,
+            )
+            if rank is None:
+                continue
+            total = len(all_buys_sorted)
+            score = max(0.0, 100.0 * (1.0 - (rank - 1) / max(total, 1)))
+            scores.append(score)
+        if not scores:
+            return None
+        return round(sum(scores) / len(scores), 2)
 
     async def hold_duration_avg(self, address: str) -> Optional[float]:
         tokens = await self.trade_repo.get_wallet_tokens(address)
