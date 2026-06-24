@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 _SOLANA_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{43,44}$")
 
@@ -53,6 +53,41 @@ async def _refresh_holders():
             await helius.close()
 
 
+async def _trigger_signal_eval_for_smart_wallets() -> None:
+    """After rescoring, push tokens with smart-wallet BUY activity (last 2h) to signal_eval_queue."""
+    from sqlalchemy import text
+    from config.settings import get_settings
+    from config.constants import SMART_WALLET_SCORE_THRESHOLD_COLD, SMART_WALLET_SCORE_THRESHOLD
+    settings = get_settings()
+    threshold = (
+        SMART_WALLET_SCORE_THRESHOLD_COLD
+        if settings.app.signal_cold_start_mode
+        else SMART_WALLET_SCORE_THRESHOLD
+    )
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text("""
+                    SELECT DISTINCT t.token_mint
+                    FROM trades t
+                    JOIN wallets w ON t.wallet_address = w.address
+                    WHERE t.side = 'BUY'
+                      AND t.timestamp >= :cutoff
+                      AND w.composite_score >= :threshold
+                """),
+                {"cutoff": cutoff, "threshold": threshold},
+            )
+            mints = [row[0] for row in result.fetchall()]
+        if mints:
+            redis = await get_redis()
+            for mint in mints:
+                await redis.lpush("signal_eval_queue", mint)
+            logger.info("Signal re-eval queued after rescore", tokens=len(mints))
+    except Exception as e:
+        logger.error("Signal re-eval trigger failed", error=str(e))
+
+
 async def _rescore_wallets():
     async with AsyncSessionLocal() as session:
         wallet_repo = WalletRepository(session)
@@ -95,6 +130,8 @@ async def _rescore_wallets():
             skipped=skipped,
             failed=failed,
         )
+    if rescored > 0:
+        await _trigger_signal_eval_for_smart_wallets()
 
 
 async def _evaluate_signals():
