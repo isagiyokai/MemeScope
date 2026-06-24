@@ -83,6 +83,7 @@ class PumpfunListener:
         self.client = PumpAPIClient()
 
     _logged_sample = False
+    _logged_trade_sample = False
     _logged_event_fingerprints: set = set()
 
     async def _handle_event(self, event: dict) -> None:
@@ -136,6 +137,9 @@ class PumpfunListener:
 
         elif tx_type == "trade":
             metrics.increment("pumpapi_trade_events_total")
+            if not PumpfunListener._logged_trade_sample:
+                PumpfunListener._logged_trade_sample = True
+                logger.info("PumpAPI first trade event sample", event=event)
             payload = {
                 "signature": event.get("signature"),
                 "slot": event.get("block") or event.get("slot"),
@@ -149,6 +153,7 @@ class PumpfunListener:
                 logger.info(
                     "Pump.fun trade enqueued",
                     mint=event.get("mint"),
+                    tx_type=raw_type,
                     is_buy=event.get("isBuy"),
                     sol=event.get("solAmount"),
                     sig=str(event.get("signature", ""))[:12],
