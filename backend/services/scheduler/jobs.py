@@ -131,6 +131,20 @@ async def _refresh_trades():
             await poller.close()
 
 
+async def _purge_old_snapshots():
+    """Delete holder snapshots older than 24hrs. Runs every 6hrs."""
+    from sqlalchemy import text
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(text(
+                "DELETE FROM holder_snapshots WHERE snapshot_at < NOW() - INTERVAL '24 hours'"
+            ))
+            await session.commit()
+            logger.info("Snapshot purge done", deleted=result.rowcount)
+        except Exception as e:
+            logger.error("Snapshot purge failed", error=str(e))
+
+
 async def _ingest_pumpfun():
     # Pumpfun ingestion handled by PumpfunListener WebSocket stream in workers process
     pass
@@ -168,6 +182,13 @@ def start_scheduler():
         _detect_clusters,
         trigger=IntervalTrigger(minutes=10),
         id="detect_clusters",
+        replace_existing=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _purge_old_snapshots,
+        trigger=IntervalTrigger(hours=6),
+        id="purge_snapshots",
         replace_existing=True,
         max_instances=1,
     )
