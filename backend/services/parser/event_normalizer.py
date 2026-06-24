@@ -35,7 +35,12 @@ def normalize_event(tx: dict, signature: str, slot: Optional[int] = None) -> Opt
             is_buy = True
         price = sol_amount / token_amount if token_amount > 0 else 0.0
         ts = pumpapi.get("timestamp")
-        timestamp = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(timezone.utc)
+        if ts:
+            if ts > 1_700_000_000_000:  # milliseconds
+                ts = ts / 1000
+            timestamp = datetime.fromtimestamp(ts, tz=timezone.utc)
+        else:
+            timestamp = datetime.now(timezone.utc)
         return {
             "token_mint": mint,
             "wallet_address": signer,
@@ -51,7 +56,12 @@ def normalize_event(tx: dict, signature: str, slot: Optional[int] = None) -> Opt
         }
 
     block_time = tx.get("blockTime")
-    timestamp = datetime.fromtimestamp(block_time, tz=timezone.utc) if block_time else datetime.now(timezone.utc)
+    if block_time:
+        if block_time > 1_700_000_000_000:  # milliseconds
+            block_time = block_time / 1000
+        timestamp = datetime.fromtimestamp(block_time, tz=timezone.utc)
+    else:
+        timestamp = datetime.now(timezone.utc)
 
     if is_swap(tx):
         swap = decode_swap(tx)
