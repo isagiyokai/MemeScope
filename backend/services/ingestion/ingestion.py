@@ -83,19 +83,41 @@ class PumpfunListener:
         self.client = PumpAPIClient()
 
     _logged_sample = False
+    _logged_event_fingerprints: set = set()
 
     async def _handle_event(self, event: dict) -> None:
+        from services import metrics
+        metrics.increment("pumpapi_events_total")
+
         if not PumpfunListener._logged_sample:
             PumpfunListener._logged_sample = True
             logger.info("PumpAPI first event sample", event=event)
 
-        # txType field absent in many streams — fall back to field-presence detection
-        tx_type = event.get("txType") or event.get("type") or ""
-        if not tx_type:
-            if "isBuy" in event or "solAmount" in event:
+        # Normalize txType: raw string may be "buy"/"sell"/"create" or absent
+        raw_type = (event.get("txType") or event.get("type") or "").lower()
+
+        if raw_type in ("buy", "sell", "trade"):
+            tx_type = "trade"
+        elif raw_type == "create":
+            tx_type = "create"
+        else:
+            # Field-presence fallback
+            has_trade_fields = (
+                "isBuy" in event
+                or "solAmount" in event
+                or "tokenAmount" in event
+                or event.get("traderPublicKey")
+                or event.get("trader")
+            )
+            has_create_fields = (
+                event.get("name") and event.get("symbol") and event.get("mint")
+            )
+            if has_trade_fields:
                 tx_type = "trade"
-            elif event.get("name") and event.get("symbol") and event.get("mint"):
+            elif has_create_fields:
                 tx_type = "create"
+            else:
+                tx_type = ""
 
         logger.debug("PumpAPI event received", tx_type=tx_type, mint=event.get("mint"), sig=str(event.get("signature", ""))[:12])
         try:
@@ -105,7 +127,7 @@ class PumpfunListener:
             return
 
         if tx_type == "create":
-            # New token launch — enqueue for pumpfun_worker
+            metrics.increment("pumpapi_create_events_total")
             try:
                 await redis.lpush(PUMPFUN_LAUNCH_QUEUE, json.dumps(event))
                 logger.info("Pump.fun launch enqueued", mint=event.get("mint"), name=event.get("name"), symbol=event.get("symbol"))
@@ -113,13 +135,13 @@ class PumpfunListener:
                 logger.exception("Pump.fun launch enqueue failed", mint=event.get("mint"))
 
         elif tx_type == "trade":
-            # Buy/sell — normalise into raw_tx_queue format for parser_worker
+            metrics.increment("pumpapi_trade_events_total")
             payload = {
                 "signature": event.get("signature"),
-                "slot": event.get("block"),
+                "slot": event.get("block") or event.get("slot"),
                 "transaction": {
                     "blockTime": event.get("timestamp"),
-                    "_pumpapi": event,  # parser can read raw event fields
+                    "_pumpapi": event,
                 },
             }
             try:
@@ -135,7 +157,18 @@ class PumpfunListener:
                 logger.exception("Pump.fun trade enqueue failed", mint=event.get("mint"))
 
         else:
-            logger.debug("PumpAPI unhandled txType", tx_type=tx_type, mint=event.get("mint"))
+            metrics.increment("pumpapi_dropped_events_total")
+            # Log one sample per unique field fingerprint so we can audit unknown formats
+            fingerprint = frozenset(event.keys())
+            if fingerprint not in PumpfunListener._logged_event_fingerprints:
+                PumpfunListener._logged_event_fingerprints.add(fingerprint)
+                logger.info(
+                    "PumpAPI unhandled event — new field signature",
+                    fields=sorted(event.keys()),
+                    event=event,
+                )
+            else:
+                logger.debug("PumpAPI unhandled txType", tx_type=raw_type, mint=event.get("mint"))
 
     async def run(self) -> None:
         """Blocking stream loop — reconnects on disconnect."""

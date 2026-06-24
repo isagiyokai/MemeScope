@@ -14,12 +14,25 @@ def normalize_event(tx: dict, signature: str, slot: Optional[int] = None) -> Opt
     pumpapi = tx.get("_pumpapi")
     if pumpapi:
         mint = pumpapi.get("mint")
-        signer = pumpapi.get("txSigner")
+        signer = (
+            pumpapi.get("txSigner")
+            or pumpapi.get("traderPublicKey")
+            or pumpapi.get("trader")
+            or pumpapi.get("user")
+        )
         if not mint or not signer:
             return None
         sol_amount = float(pumpapi.get("solAmount", 0) or 0)
         token_amount = float(pumpapi.get("tokenAmount", 0) or 0)
-        is_buy = pumpapi.get("isBuy", True)
+        raw_tx_type = (pumpapi.get("txType") or pumpapi.get("type") or "").lower()
+        if "isBuy" in pumpapi:
+            is_buy = pumpapi["isBuy"]
+        elif raw_tx_type == "buy":
+            is_buy = True
+        elif raw_tx_type == "sell":
+            is_buy = False
+        else:
+            is_buy = True
         price = sol_amount / token_amount if token_amount > 0 else 0.0
         ts = pumpapi.get("timestamp")
         timestamp = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(timezone.utc)
