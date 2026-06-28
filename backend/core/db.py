@@ -21,6 +21,10 @@ def _get_url() -> tuple[str, bool]:
     database_url = settings.database.url
     if not database_url:
         return "", False
+    # SQLite URLs have no libpq params to strip; urlunparse corrupts them by
+    # dropping the empty netloc component (///  → /). Return as-is.
+    if database_url.startswith("sqlite"):
+        return database_url, False
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
     elif database_url.startswith("postgresql://"):
