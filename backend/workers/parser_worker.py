@@ -59,6 +59,7 @@ async def process_raw_tx(raw: dict) -> None:
 
             # Archive — fire-and-forget, never raises
             from services.archive import archive_publish
+            ts = event.get("timestamp")
             await archive_publish("trade", {
                 "signature": signature,
                 "token_mint": event.get("token_mint"),
@@ -66,7 +67,7 @@ async def process_raw_tx(raw: dict) -> None:
                 "side": event.get("side"),
                 "sol_amount": event.get("sol_amount"),
                 "token_amount": event.get("token_amount"),
-                "timestamp": event.get("timestamp"),
+                "timestamp": ts.isoformat() if isinstance(ts, datetime) else ts,
                 "source": event.get("source", "unknown"),
             })
         except Exception as e:
