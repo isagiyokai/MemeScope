@@ -26,6 +26,18 @@ async def process_launch(raw: dict) -> None:
             await redis.lpush(HOLDER_UPDATE_QUEUE, mint)
             await redis.lpush(SIGNAL_EVAL_QUEUE, mint)
             logger.info("Pump.fun launch processed and downstream enqueued", mint=mint)
+
+            # Archive token create — fire-and-forget
+            from services.archive import archive_publish
+            await archive_publish("token", {
+                "mint": mint,
+                "name": raw.get("name"),
+                "symbol": raw.get("symbol"),
+                "creator": raw.get("traderPublicKey") or raw.get("txSigner") or raw.get("creator"),
+                "created_at": raw.get("timestamp"),
+                "metadata_uri": raw.get("uri") or raw.get("metadataUri"),
+            })
+            await archive_publish("pumpapi_event", {"event_type": "create", "raw": raw})
         finally:
             await tracker.close()
 

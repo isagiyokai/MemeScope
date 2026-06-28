@@ -17,10 +17,10 @@ from config.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def capture_signal_snapshot(session: AsyncSession, signal: Signal) -> None:
-    """Capture full market and intelligence context at signal fire time. Never raises."""
+async def capture_signal_snapshot(session: AsyncSession, signal: Signal):
+    """Capture full market and intelligence context at signal fire time. Never raises. Returns snapshot or None."""
     try:
-        await _capture(session, signal)
+        return await _capture(session, signal)
     except Exception as e:
         logger.warning(
             "Signal snapshot capture failed — signal still created",
@@ -28,6 +28,7 @@ async def capture_signal_snapshot(session: AsyncSession, signal: Signal) -> None
             token=signal.token_mint,
             error=str(e),
         )
+        return None
 
 
 async def _capture(session: AsyncSession, signal: Signal) -> None:
@@ -111,3 +112,4 @@ async def _capture(session: AsyncSession, signal: Signal) -> None:
         smart_wallets=smart_wallet_count,
         rule_version=rule_version,
     )
+    return snapshot

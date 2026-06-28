@@ -33,18 +33,34 @@ async def main():
     from workers.holder_worker import run_holder_worker
     from workers.pumpfun_worker import run_pumpfun_worker
     from services.ingestion.ingestion import PumpfunListener
+    from config.settings import get_settings
 
     logger.info("Starting all workers")
     listener = PumpfunListener()
     logger.info("PumpfunListener instantiated — scheduling in gather")
-    await asyncio.gather(
+
+    tasks = [
         _health_server(),
         run_parser_worker(),
         run_signal_worker(),
         run_holder_worker(),
         run_pumpfun_worker(),
         listener.run(),
-    )
+    ]
+
+    settings = get_settings()
+    if settings.archive.enabled:
+        try:
+            from services.archive.duckdb_backend import DuckDBArchiveBackend
+            from services.archive.archive_writer import ArchiveWriter
+            backend = DuckDBArchiveBackend(settings.archive.path)
+            writer = ArchiveWriter(backend)
+            tasks.append(writer.run())
+            logger.info("ArchiveWriter enabled", path=settings.archive.path)
+        except Exception as e:
+            logger.error("ArchiveWriter failed to start — continuing without archive", error=str(e))
+
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

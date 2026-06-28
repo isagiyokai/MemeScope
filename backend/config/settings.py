@@ -92,6 +92,17 @@ class PumpAPISettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PUMPAPI_")
 
 
+class ArchiveSettings(BaseSettings):
+    enabled: bool = True
+    backend: str = "duckdb"
+    path: str = "archive/memescope_archive.duckdb"
+    batch_size: int = 500
+    flush_interval: int = 5  # seconds
+    queue_name: str = "archive_queue"
+
+    model_config = SettingsConfigDict(env_prefix="ARCHIVE_")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"),
@@ -106,6 +117,7 @@ class Settings(BaseSettings):
     jwt: JWTSettings = JWTSettings()
     app: AppSettings = AppSettings()
     pumpapi: PumpAPISettings = PumpAPISettings()
+    archive: ArchiveSettings = ArchiveSettings()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

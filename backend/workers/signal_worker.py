@@ -28,6 +28,19 @@ async def run_signal_worker():
                 engine = SignalEngine(session)
                 signals = await engine.evaluate_token(token_mint)
                 logger.info("Signal evaluation done", token=token_mint, signals=len(signals))
+                if signals:
+                    from services.archive import archive_publish
+                    for sig in signals:
+                        await archive_publish("signal", {
+                            "id": str(sig.id),
+                            "token_mint": sig.token_mint,
+                            "signal_type": sig.signal_type.value if hasattr(sig.signal_type, "value") else str(sig.signal_type),
+                            "source_rule": sig.source_rule,
+                            "confidence": sig.confidence,
+                            "reason": getattr(sig, "reason", None),
+                            "is_active": sig.is_active,
+                            "fired_at": sig.triggered_at.isoformat() if sig.triggered_at else None,
+                        })
         except Exception as e:
             logger.error("Signal worker loop error", error=str(e))
             await asyncio.sleep(2)

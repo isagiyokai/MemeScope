@@ -1,0 +1,3 @@
+# DuckDB archive — created at runtime, never committed
+*.duckdb
+*.duckdb.wal

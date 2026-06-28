@@ -53,7 +53,23 @@ class SignalEngine:
                         signals.append(signal)
                         logger.info("Signal generated", token=token_mint, rule=result.source_rule, type=result.signal_type)
                         from services.signals.snapshot_service import capture_signal_snapshot
-                        await capture_signal_snapshot(self.session, signal)
+                        snapshot = await capture_signal_snapshot(self.session, signal)
+                        if snapshot is not None:
+                            from services.archive import archive_publish
+                            await archive_publish("signal_snapshot", {
+                                "signal_id": str(signal.id),
+                                "token_mint": signal.token_mint,
+                                "fired_price_usd": float(snapshot.fired_price_usd) if snapshot.fired_price_usd else None,
+                                "market_cap_usd": float(snapshot.market_cap_usd) if snapshot.market_cap_usd else None,
+                                "liquidity_usd": float(snapshot.liquidity_usd) if snapshot.liquidity_usd else None,
+                                "volume_1h_usd": float(snapshot.volume_1h_usd) if snapshot.volume_1h_usd else None,
+                                "holders_count": snapshot.holders_count,
+                                "smart_wallet_count": snapshot.smart_wallet_count,
+                                "avg_wallet_score": float(snapshot.avg_wallet_score) if snapshot.avg_wallet_score else None,
+                                "triggering_wallets": snapshot.triggering_wallets,
+                                "signal_rule_version": snapshot.signal_rule_version,
+                                "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+                            })
             except Exception as e:
                 logger.error("Rule evaluation failed", token=token_mint, rule=rule.__class__.__name__, error=str(e))
 

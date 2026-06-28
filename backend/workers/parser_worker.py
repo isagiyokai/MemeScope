@@ -56,6 +56,19 @@ async def process_raw_tx(raw: dict) -> None:
             # Enqueue signal evaluation
             redis = await get_redis()
             await redis.lpush(SIGNAL_EVAL_QUEUE, event["token_mint"])
+
+            # Archive — fire-and-forget, never raises
+            from services.archive import archive_publish
+            await archive_publish("trade", {
+                "signature": signature,
+                "token_mint": event.get("token_mint"),
+                "wallet": event.get("wallet_address"),
+                "side": event.get("side"),
+                "sol_amount": event.get("sol_amount"),
+                "token_amount": event.get("token_amount"),
+                "timestamp": event.get("timestamp"),
+                "source": event.get("source", "unknown"),
+            })
         except Exception as e:
             logger.error("Failed to store trade", tx=signature, error=str(e))
             await session.rollback()

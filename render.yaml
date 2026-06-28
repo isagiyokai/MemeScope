@@ -35,6 +35,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: PYTHONPATH=$(pwd) python -m workers.main
     healthCheckPath: /health
+    # NOTE: ARCHIVE_PATH should point to a Render persistent disk mount.
+    # Add a disk in the Render dashboard (memescope-workers → Disks → mount at /data)
+    # then set ARCHIVE_PATH=/data/memescope_archive.duckdb via env var.
+    # Without a disk, archive data is ephemeral and lost on restart.
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -46,3 +50,15 @@ services:
         sync: false
       - key: APP_ENV
         value: production
+      - key: ARCHIVE_ENABLED
+        value: "true"
+      - key: ARCHIVE_BACKEND
+        value: duckdb
+      - key: ARCHIVE_PATH
+        value: /data/memescope_archive.duckdb
+      - key: ARCHIVE_BATCH_SIZE
+        value: "500"
+      - key: ARCHIVE_FLUSH_INTERVAL
+        value: "5"
+      - key: ARCHIVE_QUEUE_NAME
+        value: archive_queue

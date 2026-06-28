@@ -30,8 +30,25 @@ async def refresh_token_holders(token_mint: str) -> None:
             token_repo = TokenRepository(session)
             token = await token_repo.get_by_mint(token_mint)
             total_supply = token.total_supply if token else None
-            await tracker.fetch_and_store(token_mint, total_supply)
+            snapshots = await tracker.fetch_and_store(token_mint, total_supply)
             logger.info("Top10 refreshed", token=token_mint)
+
+            # Archive holder snapshot — fire-and-forget
+            if snapshots:
+                from services.archive import archive_publish
+                from datetime import datetime, timezone
+                top10_pct = sum(float(s.pct_supply or 0) for s in snapshots)
+                top_holders = [
+                    {"rank": s.rank, "address": s.wallet_address, "balance": float(s.balance or 0), "pct": float(s.pct_supply or 0)}
+                    for s in snapshots
+                ]
+                await archive_publish("holder_snapshot", {
+                    "token_mint": token_mint,
+                    "snapshot_at": datetime.now(timezone.utc).isoformat(),
+                    "top10_pct": top10_pct,
+                    "holder_count": len(snapshots),
+                    "top_holders": top_holders,
+                })
         finally:
             await helius.close()
 
