@@ -2,10 +2,13 @@
 PumpAPI WebSocket client — wss://stream.pumpapi.io/
 
 Events stream continuously (no subscription needed, no auth).
-Filter by txType: "create" (launches), "trade" (buys/sells), "transfer", "migration", etc.
+Type is determined by the "action" field (not "txType"/"type" — those are absent).
 
-Create event key fields: mint, name, symbol, txSigner (creator), timestamp, signature
-Trade event key fields: mint, txSigner, solAmount, tokenAmount, isBuy, timestamp, signature
+Confirmed event types from field audit (2026-06-24):
+  Migration/graduation events: action=<migration value>, fields include pool, poolId,
+    tokenAmount (liquidity), quoteAmount, tokensInPool, tradersInvolved, price, marketCapQuote
+  Create events: name, symbol, mint present; no pool/poolId
+  Trade events (buy/sell): expected isBuy, solAmount, traderPublicKey — not yet confirmed
 """
 import asyncio
 import json

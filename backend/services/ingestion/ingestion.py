@@ -84,7 +84,6 @@ class PumpfunListener:
 
     _logged_sample = False
     _trade_event_count = 0
-    _field_audit_count = 0
     _logged_event_fingerprints: set = set()
 
     async def _handle_event(self, event: dict) -> None:
@@ -95,46 +94,38 @@ class PumpfunListener:
             PumpfunListener._logged_sample = True
             logger.info("PumpAPI first event sample", event=event)
 
-        # Normalize txType: raw string may be "buy"/"sell"/"create" or absent
-        raw_type = (event.get("txType") or event.get("type") or "").lower()
+        # Normalize txType: PumpAPI uses "action" field, not "txType"/"type"
+        # Field audit confirmed: pool/migration events have "action" but no txType/type
+        raw_type = (event.get("txType") or event.get("type") or event.get("action") or "").lower()
 
         if raw_type in ("buy", "sell", "trade"):
             tx_type = "trade"
         elif raw_type == "create":
             tx_type = "create"
+        elif raw_type in ("migration", "migrate", "pool", "swap"):
+            tx_type = "migration"
         else:
             # Field-presence fallback
+            # NOTE: tokenAmount removed — pool migration events carry tokenAmount as
+            # liquidity quantity, causing false trade classification (field audit n=1-20).
             has_trade_fields = (
                 "isBuy" in event
                 or "solAmount" in event
-                or "tokenAmount" in event
                 or event.get("traderPublicKey")
                 or event.get("trader")
             )
+            # Migration events: have pool + poolId + mint (graduation to Raydium)
+            has_migration_fields = (
+                ("pool" in event or "poolId" in event) and event.get("mint")
+            )
             has_create_fields = (
                 event.get("name") and event.get("symbol") and event.get("mint")
+                and "pool" not in event
             )
             if has_trade_fields:
                 tx_type = "trade"
-                # Field audit: identify exactly which field triggered classification
-                if PumpfunListener._field_audit_count < 20:
-                    PumpfunListener._field_audit_count += 1
-                    matched = (
-                        "isBuy" if "isBuy" in event else
-                        "solAmount" if "solAmount" in event else
-                        "tokenAmount" if "tokenAmount" in event else
-                        "traderPublicKey" if event.get("traderPublicKey") else
-                        "trader" if event.get("trader") else
-                        "unknown"
-                    )
-                    logger.info(
-                        "PumpAPI trade field audit",
-                        n=PumpfunListener._field_audit_count,
-                        matched=matched,
-                        keys=sorted(event.keys()),
-                        mint=event.get("mint"),
-                        sig=str(event.get("signature", ""))[:12],
-                    )
+            elif has_migration_fields:
+                tx_type = "migration"
             elif has_create_fields:
                 tx_type = "create"
             else:
@@ -152,8 +143,36 @@ class PumpfunListener:
             try:
                 await redis.lpush(PUMPFUN_LAUNCH_QUEUE, json.dumps(event))
                 logger.info("Pump.fun launch enqueued", mint=event.get("mint"), name=event.get("name"), symbol=event.get("symbol"))
+                from services.archive import archive_publish
+                await archive_publish("pumpapi_event", {"event_type": "create", "raw": event})
             except Exception:
                 logger.exception("Pump.fun launch enqueue failed", mint=event.get("mint"))
+
+        elif tx_type == "migration":
+            metrics.increment("pumpapi_migration_events_total")
+            logger.info(
+                "Pump.fun graduation event",
+                mint=event.get("mint"),
+                pool=event.get("pool") or event.get("poolId"),
+                action=event.get("action"),
+                price=event.get("price"),
+                market_cap=event.get("marketCapQuote"),
+                sig=str(event.get("signature", ""))[:12],
+            )
+            from services.archive import archive_publish
+            await archive_publish("migration", {
+                "signature": event.get("signature"),
+                "mint": event.get("mint"),
+                "pool": event.get("pool"),
+                "poolId": event.get("poolId"),
+                "timestamp": event.get("timestamp"),
+                "quoteAmount": event.get("quoteAmount"),
+                "tokenAmount": event.get("tokenAmount"),
+                "tradersInvolved": event.get("tradersInvolved"),
+                "price": event.get("price"),
+                "marketCapQuote": event.get("marketCapQuote"),
+            })
+            await archive_publish("pumpapi_event", {"event_type": "migration", "raw": event})
 
         elif tx_type == "trade":
             metrics.increment("pumpapi_trade_events_total")
